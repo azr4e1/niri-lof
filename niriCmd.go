@@ -25,7 +25,6 @@ func FindWindowByAppID(appID string, windows []Window) []Window {
 
 	for _, w := range windows {
 		if w.AppID == appID {
-			fmt.Printf("%+v", w)
 			appIDWindows = append(appIDWindows, w)
 		}
 	}
