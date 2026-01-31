@@ -20,7 +20,7 @@ const (
 	ScrollingPositionConst = "Scrolling position"
 	WindowSizeConst        = "Window size"
 	WindowOffsetConst      = "Window offset in tile"
-	WorkSapceViewPosition  = "Workspace-view position"
+	WorkSpaceViewPosition  = "Workspace-view position"
 	WindowBlockSeparator   = "\n\n"
 )
 
@@ -29,7 +29,7 @@ func ParseNiriWindows(content string) ([]Window, error) {
 	cleanBlocks := []string{}
 	for _, b := range blocks {
 		block := strings.TrimSpace(b)
-		if len(b) == 0 {
+		if len(block) == 0 {
 			continue
 		}
 		cleanBlocks = append(cleanBlocks, block)
@@ -74,7 +74,7 @@ func ParseWindow(content string) (Window, error) {
 				window.AppID = strings.Trim(v, "\"")
 			case IsFloatingConst:
 				var isFloating bool
-				if val == "yes" {
+				if v == "yes" {
 					isFloating = true
 				}
 				window.IsFloating = isFloating
@@ -137,7 +137,7 @@ func parseLayout(layoutMap map[string]any) (Layout, error) {
 					return Layout{}, err
 				}
 				layout.ScrollingPos = position
-			case WorkSapceViewPosition:
+			case WorkSpaceViewPosition:
 				position, err := parseFloatingPosition(v)
 				if err != nil {
 					return Layout{}, err

@@ -26,7 +26,7 @@ with that ID is open, it will launch the corresponding <cmd>`, os.Args[0])
 	args := flag.Args()
 
 	if len(args) != 2 {
-		fmt.Println("you need to provide exactly two arguments: <appID> and <cmd>\n")
+		fmt.Fprintln(os.Stderr, "you need to provide exactly two arguments: <appID> and <cmd>\n")
 		flag.Usage()
 		return 1
 	}
@@ -37,7 +37,7 @@ with that ID is open, it will launch the corresponding <cmd>`, os.Args[0])
 	err := nirilof.LaunchOrFocus(appID, cmd)
 
 	if err != nil {
-		fmt.Printf("error: %s", err)
+		fmt.Fprintf(os.Stderr, "error: %s\n", err)
 		return 2
 	}
 

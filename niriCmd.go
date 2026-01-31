@@ -10,7 +10,7 @@ import (
 
 func GetWindows() ([]Window, error) {
 	niriMsg := exec.Command("niri", "msg", "windows")
-	data, err := niriMsg.CombinedOutput()
+	data, err := niriMsg.Output()
 	if err != nil {
 		return nil, err
 	}
@@ -42,7 +42,7 @@ func FocusWindow(window Window, allWindows []Window) error {
 	}
 
 	if !exists {
-		return fmt.Errorf("windows with ID %d does not exist\n", window.ID)
+		return fmt.Errorf("window with ID %d does not exist", window.ID)
 	}
 	niriMsg := exec.Command("niri", "msg", "action", "focus-window", "--id", fmt.Sprintf("%d", window.ID))
 	err := niriMsg.Run()
@@ -65,10 +65,6 @@ func ParseCommand(cmd string) (*exec.Cmd, error) {
 }
 
 func LaunchOrFocus(appID string, cmd string) error {
-	command, err := ParseCommand(cmd)
-	if err != nil {
-		return err
-	}
 	allWindows, err := GetWindows()
 	if err != nil {
 		return err
@@ -76,7 +72,12 @@ func LaunchOrFocus(appID string, cmd string) error {
 
 	appIDWindows := FindWindowByAppID(appID, allWindows)
 	if len(appIDWindows) == 0 {
-		err := command.Run()
+		command, err := ParseCommand(cmd)
+		if err != nil {
+			return err
+		}
+
+		err = command.Run()
 		return err
 	}
 
