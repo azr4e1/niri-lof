@@ -24,6 +24,8 @@ const (
 	WindowBlockSeparator   = "\n\n"
 )
 
+// Split window blocks from niri msg windows outputs and parse
+// each individual windows
 func ParseNiriWindows(content string) ([]Window, error) {
 	blocks := strings.Split(content, WindowBlockSeparator)
 	cleanBlocks := []string{}
@@ -47,6 +49,8 @@ func ParseNiriWindows(content string) ([]Window, error) {
 	return windows, nil
 }
 
+// Parse Window from niri msg windows output after lexer parseIndentation has
+// collected elements
 func ParseWindow(content string) (Window, error) {
 	lines := strings.Split(content, "\n")
 	if len(lines) == 0 {
@@ -107,6 +111,8 @@ func ParseWindow(content string) (Window, error) {
 	return window, nil
 }
 
+// Parse Layout from niri msg windows output after lexer parseIndentation has
+// collected elements
 func parseLayout(layoutMap map[string]any) (Layout, error) {
 	layout := Layout{}
 	for key, val := range layoutMap {
@@ -152,6 +158,8 @@ func parseLayout(layoutMap map[string]any) (Layout, error) {
 	return layout, nil
 }
 
+// Parse window size from niri msg windows output
+// e.g.: 1303 x 1060
 func parseSize(value string) (Size, error) {
 	parts := strings.Split(value, "x")
 	if len(parts) != 2 {
@@ -168,6 +176,8 @@ func parseSize(value string) (Size, error) {
 	return Size{width, height}, nil
 }
 
+// Parse scrolling position from niri msg windows output
+// e.g.: column 1, tile 1
 func parsePosition(value string) (Position, error) {
 	parts := strings.Split(value, ",")
 	if len(parts) != 2 {
@@ -186,6 +196,8 @@ func parsePosition(value string) (Position, error) {
 	return Position{column, tile}, nil
 }
 
+// Parse FloatingPosition structure from niri msg windows output
+// e.g.: 992, 20
 func parseFloatingPosition(value string) (FloatingPosition, error) {
 	parts := strings.Split(value, ",")
 	if len(parts) != 2 {
@@ -202,6 +214,8 @@ func parseFloatingPosition(value string) (FloatingPosition, error) {
 	return FloatingPosition{width, height}, nil
 }
 
+// Determine indentation level of string (how many white spaces
+// preceed a non-white character)
 func getSpaceIndentation(line string) int {
 	var level int
 	for ; level < len(line) && line[level] == ' '; level++ {
@@ -210,6 +224,8 @@ func getSpaceIndentation(line string) int {
 	return level
 }
 
+// Parses general structure of niri msg windows output - several
+// lines of key: value pairs, nested in indentation levels
 func parseIndentation(lines []string, currIndentationLevel int) (map[string]any, int) {
 	if len(lines) == 0 {
 		return nil, 0
@@ -239,6 +255,8 @@ func parseIndentation(lines []string, currIndentationLevel int) (map[string]any,
 	return parsedLines, i
 }
 
+// Parse the Window ID string from niri msg windows
+// (first line for each window). Detects if window is focused
 func parseWindowID(line string) (int, bool, error) {
 	if !strings.HasPrefix(line, WindowIDConst) {
 		return 0, false, errors.New("doesn't match window type")

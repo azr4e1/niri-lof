@@ -8,6 +8,7 @@ import (
 	"github.com/google/shlex"
 )
 
+// Get all currently open windows in niri
 func GetWindows() ([]Window, error) {
 	niriMsg := exec.Command("niri", "msg", "windows")
 	data, err := niriMsg.Output()
@@ -20,6 +21,7 @@ func GetWindows() ([]Window, error) {
 	return windows, err
 }
 
+// Find a window by App ID among all the open windows in niri
 func FindWindowByAppID(appID string, windows []Window) []Window {
 	appIDWindows := []Window{}
 
@@ -32,6 +34,7 @@ func FindWindowByAppID(appID string, windows []Window) []Window {
 	return appIDWindows
 }
 
+// Focus a window in niri
 func FocusWindow(window Window, allWindows []Window) error {
 	var exists bool
 	for _, w := range allWindows {
@@ -50,6 +53,8 @@ func FocusWindow(window Window, allWindows []Window) error {
 	return err
 }
 
+// use shlex to split a string according to shell
+// rules and create a command
 func ParseCommand(cmd string) (*exec.Cmd, error) {
 	shellSplit, err := shlex.Split(cmd)
 	if err != nil {
@@ -64,6 +69,8 @@ func ParseCommand(cmd string) (*exec.Cmd, error) {
 	return exec.Command(name, args...), nil
 }
 
+// Find a window by appID. If there is, focus the first result.
+// Otherwise, run the command cmd provided
 func LaunchOrFocus(appID string, cmd string) error {
 	allWindows, err := GetWindows()
 	if err != nil {
