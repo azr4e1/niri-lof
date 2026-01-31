@@ -221,7 +221,7 @@ func parseIndentation(lines []string, currIndentationLevel int) (map[string]any,
 		indentationLevel := getSpaceIndentation(lines[i])
 		if indentationLevel > currIndentationLevel {
 			newParsedLines, j := parseIndentation(lines[i:], indentationLevel)
-			i += j
+			i += j - 1
 			parsedLines[lastVal] = newParsedLines
 		} else if indentationLevel < currIndentationLevel {
 			return parsedLines, i
