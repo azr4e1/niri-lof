@@ -1,42 +1,24 @@
 package nirilof
 
-// Size is used for window sizes
-type Size struct {
-	X int
-	Y int
-}
-
-// Position is used for window position
-// within column and workspaces
-type Position struct {
-	Column int
-	Tile   int
-}
-
-// FloatingPosition is used for position
-// within a workspace of a floating window
-type FloatingPosition struct {
-	X int
-	Y int
-}
+type NumericalPair []float64
 
 // Layout represents the layout of a window in Niri
 type Layout struct {
-	TileSize              Size
-	ScrollingPos          Position
-	WindowSize            Size
-	WindowOffsetTile      Size
-	WorkspaceViewPosition FloatingPosition
+	TileSize              NumericalPair `json:"tile_size"`
+	ScrollingPos          NumericalPair `json:"pos_in_scrolling_layout"`
+	WindowSize            NumericalPair `json:"window_size"`
+	WindowOffsetTile      NumericalPair `json:"window_offset_in_tile"`
+	WorkspaceViewPosition NumericalPair `json:"tile_pos_in_workspace_view"`
 }
 
 // Window represents the properties of a window in Niri
 type Window struct {
-	Focused     bool
-	ID          int
-	Title       string
-	AppID       string
-	IsFloating  bool
-	PID         int
-	WorkspaceID int
-	Layout      Layout
+	Focused     bool   `json:"is_focused"`
+	ID          int    `json:"id"`
+	Title       string `json:"title"`
+	AppID       string `json:"app_id"`
+	IsFloating  bool   `json:"is_floating"`
+	PID         int    `json:"pid"`
+	WorkspaceID int    `json:"workspace_id"`
+	Layout      Layout `json:"layout"`
 }

@@ -104,23 +104,23 @@ func TestParseSize(t *testing.T) {
 	tests := []struct {
 		name    string
 		value   string
-		want    Size
+		want    NumericalPair
 		wantErr bool
 	}{
 		{
 			name:  "normal size",
 			value: "1491 x 1060",
-			want:  Size{1491, 1060},
+			want:  NumericalPair{1491, 1060},
 		},
 		{
 			name:  "zero size",
 			value: "0 x 0",
-			want:  Size{0, 0},
+			want:  NumericalPair{0, 0},
 		},
 		{
 			name:  "no spaces around x",
 			value: "100x200",
-			want:  Size{100, 200},
+			want:  NumericalPair{100, 200},
 		},
 		{
 			name:    "missing separator",
@@ -161,7 +161,7 @@ func TestParseSize(t *testing.T) {
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
-			if got != tt.want {
+			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("parseSize(%q) = %v, want %v", tt.value, got, tt.want)
 			}
 		})
@@ -172,18 +172,18 @@ func TestParsePosition(t *testing.T) {
 	tests := []struct {
 		name    string
 		value   string
-		want    Position
+		want    NumericalPair
 		wantErr bool
 	}{
 		{
 			name:  "normal position",
 			value: "column 1, tile 1",
-			want:  Position{1, 1},
+			want:  NumericalPair{1, 1},
 		},
 		{
 			name:  "larger values",
 			value: "column 5, tile 3",
-			want:  Position{5, 3},
+			want:  NumericalPair{5, 3},
 		},
 		{
 			name:    "missing comma",
@@ -224,7 +224,7 @@ func TestParsePosition(t *testing.T) {
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
-			if got != tt.want {
+			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("parsePosition(%q) = %v, want %v", tt.value, got, tt.want)
 			}
 		})
@@ -235,23 +235,23 @@ func TestParseFloatingPosition(t *testing.T) {
 	tests := []struct {
 		name    string
 		value   string
-		want    FloatingPosition
+		want    NumericalPair
 		wantErr bool
 	}{
 		{
 			name:  "normal position",
 			value: "53, 20",
-			want:  FloatingPosition{53, 20},
+			want:  NumericalPair{53, 20},
 		},
 		{
 			name:  "zero position",
 			value: "0, 0",
-			want:  FloatingPosition{0, 0},
+			want:  NumericalPair{0, 0},
 		},
 		{
 			name:  "no spaces",
 			value: "10,20",
-			want:  FloatingPosition{10, 20},
+			want:  NumericalPair{10, 20},
 		},
 		{
 			name:    "missing comma",
@@ -292,7 +292,7 @@ func TestParseFloatingPosition(t *testing.T) {
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
-			if got != tt.want {
+			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("parseFloatingPosition(%q) = %v, want %v", tt.value, got, tt.want)
 			}
 		})
@@ -446,12 +446,12 @@ func TestParseLayout(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 		want := Layout{
-			TileSize:         Size{1491, 1060},
-			ScrollingPos:     Position{1, 1},
-			WindowSize:       Size{1491, 1060},
-			WindowOffsetTile: Size{0, 0},
+			TileSize:         NumericalPair{1491, 1060},
+			ScrollingPos:     NumericalPair{1, 1},
+			WindowSize:       NumericalPair{1491, 1060},
+			WindowOffsetTile: NumericalPair{0, 0},
 		}
-		if got != want {
+		if !reflect.DeepEqual(got, want) {
 			t.Errorf("got %+v, want %+v", got, want)
 		}
 	})
@@ -468,12 +468,12 @@ func TestParseLayout(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 		want := Layout{
-			TileSize:              Size{1867, 1060},
-			WorkspaceViewPosition: FloatingPosition{53, 20},
-			WindowSize:            Size{1867, 1060},
-			WindowOffsetTile:      Size{0, 0},
+			TileSize:              NumericalPair{1867, 1060},
+			WorkspaceViewPosition: NumericalPair{53, 20},
+			WindowSize:            NumericalPair{1867, 1060},
+			WindowOffsetTile:      NumericalPair{0, 0},
 		}
-		if got != want {
+		if !reflect.DeepEqual(got, want) {
 			t.Errorf("got %+v, want %+v", got, want)
 		}
 	})
@@ -537,7 +537,7 @@ func TestParseLayout(t *testing.T) {
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		if got.TileSize != (Size{100, 200}) {
+		if !reflect.DeepEqual(got.TileSize, NumericalPair{100, 200}) {
 			t.Errorf("TileSize = %v, want {100 200}", got.TileSize)
 		}
 	})
@@ -547,7 +547,7 @@ func TestParseLayout(t *testing.T) {
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		if got != (Layout{}) {
+		if !reflect.DeepEqual(got, Layout{}) {
 			t.Errorf("expected zero Layout, got %+v", got)
 		}
 	})
@@ -592,16 +592,16 @@ func TestParseWindow(t *testing.T) {
 		if got.WorkspaceID != 4 {
 			t.Errorf("WorkspaceID = %d, want 4", got.WorkspaceID)
 		}
-		if got.Layout.TileSize != (Size{1491, 1060}) {
+		if !reflect.DeepEqual(got.Layout.TileSize, NumericalPair{1491, 1060}) {
 			t.Errorf("TileSize = %v, want {1491 1060}", got.Layout.TileSize)
 		}
-		if got.Layout.ScrollingPos != (Position{1, 1}) {
+		if !reflect.DeepEqual(got.Layout.ScrollingPos, NumericalPair{1, 1}) {
 			t.Errorf("ScrollingPos = %v, want {1 1}", got.Layout.ScrollingPos)
 		}
-		if got.Layout.WindowSize != (Size{1491, 1060}) {
+		if !reflect.DeepEqual(got.Layout.WindowSize, NumericalPair{1491, 1060}) {
 			t.Errorf("WindowSize = %v, want {1491 1060}", got.Layout.WindowSize)
 		}
-		if got.Layout.WindowOffsetTile != (Size{0, 0}) {
+		if !reflect.DeepEqual(got.Layout.WindowOffsetTile, NumericalPair{0, 0}) {
 			t.Errorf("WindowOffsetTile = %v, want {0 0}", got.Layout.WindowOffsetTile)
 		}
 	})
@@ -638,7 +638,7 @@ func TestParseWindow(t *testing.T) {
 		if got.PID != 9626 {
 			t.Errorf("PID = %d, want 9626", got.PID)
 		}
-		if got.Layout.WorkspaceViewPosition != (FloatingPosition{53, 20}) {
+		if !reflect.DeepEqual(got.Layout.WorkspaceViewPosition, NumericalPair{53, 20}) {
 			t.Errorf("WorkspaceViewPosition = %v, want {53 20}", got.Layout.WorkspaceViewPosition)
 		}
 	})
@@ -774,7 +774,7 @@ Window ID 15: (focused)
 		if !windows[2].IsFloating {
 			t.Error("windows[2] should be floating")
 		}
-		if windows[2].Layout.WorkspaceViewPosition != (FloatingPosition{53, 20}) {
+		if !reflect.DeepEqual(windows[2].Layout.WorkspaceViewPosition, NumericalPair{53, 20}) {
 			t.Errorf("windows[2] workspace-view position = %v, want {53 20}",
 				windows[2].Layout.WorkspaceViewPosition)
 		}
@@ -891,10 +891,10 @@ Not a valid window block`
 			PID:         3798,
 			WorkspaceID: 4,
 			Layout: Layout{
-				TileSize:         Size{1491, 1060},
-				ScrollingPos:     Position{1, 1},
-				WindowSize:       Size{1491, 1060},
-				WindowOffsetTile: Size{0, 0},
+				TileSize:         NumericalPair{1491, 1060},
+				ScrollingPos:     NumericalPair{1, 1},
+				WindowSize:       NumericalPair{1491, 1060},
+				WindowOffsetTile: NumericalPair{0, 0},
 			},
 		}
 

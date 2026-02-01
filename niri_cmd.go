@@ -10,13 +10,13 @@ import (
 
 // Get all currently open windows in niri
 func GetWindows() ([]Window, error) {
-	niriMsg := exec.Command("niri", "msg", "windows")
+	niriMsg := exec.Command("niri", "msg", "-j", "windows")
 	data, err := niriMsg.Output()
 	if err != nil {
 		return nil, err
 	}
 
-	windows, err := ParseNiriWindows(string(data))
+	windows, err := ParseNiriWindowsJSON(data)
 
 	return windows, err
 }

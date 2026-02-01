@@ -1,6 +1,7 @@
 package nirilof
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strconv"
@@ -23,6 +24,16 @@ const (
 	WorkSpaceViewPosition  = "Workspace-view position"
 	WindowBlockSeparator   = "\n\n"
 )
+
+func ParseNiriWindowsJSON(jsonContent []byte) ([]Window, error) {
+	var windows = new([]Window)
+	err := json.Unmarshal(jsonContent, windows)
+	if err != nil {
+		return *windows, err
+	}
+
+	return *windows, nil
+}
 
 // Split window blocks from niri msg windows outputs and parse
 // each individual windows
@@ -160,58 +171,58 @@ func parseLayout(layoutMap map[string]any) (Layout, error) {
 
 // Parse window size from niri msg windows output
 // e.g.: 1303 x 1060
-func parseSize(value string) (Size, error) {
+func parseSize(value string) (NumericalPair, error) {
 	parts := strings.Split(value, "x")
 	if len(parts) != 2 {
-		return Size{}, fmt.Errorf("error parsing size: %s", value)
+		return NumericalPair{}, fmt.Errorf("error parsing size: %s", value)
 	}
 	width, err := strconv.Atoi(strings.TrimSpace(parts[0]))
 	if err != nil {
-		return Size{}, fmt.Errorf("error parsing width size: %w", err)
+		return NumericalPair{}, fmt.Errorf("error parsing width size: %w", err)
 	}
 	height, err := strconv.Atoi(strings.TrimSpace(parts[1]))
 	if err != nil {
-		return Size{}, fmt.Errorf("error parsing height size: %w", err)
+		return NumericalPair{}, fmt.Errorf("error parsing height size: %w", err)
 	}
-	return Size{width, height}, nil
+	return NumericalPair{float64(width), float64(height)}, nil
 }
 
 // Parse scrolling position from niri msg windows output
 // e.g.: column 1, tile 1
-func parsePosition(value string) (Position, error) {
+func parsePosition(value string) (NumericalPair, error) {
 	parts := strings.Split(value, ",")
 	if len(parts) != 2 {
-		return Position{}, fmt.Errorf("error parsing floating position: %s", value)
+		return NumericalPair{}, fmt.Errorf("error parsing floating position: %s", value)
 	}
 	columnVal := strings.TrimPrefix(strings.TrimSpace(parts[0]), "column")
 	column, err := strconv.Atoi(strings.TrimSpace(columnVal))
 	if err != nil {
-		return Position{}, fmt.Errorf("error parsing column position: %w", err)
+		return NumericalPair{}, fmt.Errorf("error parsing column position: %w", err)
 	}
 	tileVal := strings.TrimPrefix(strings.TrimSpace(parts[1]), "tile")
 	tile, err := strconv.Atoi(strings.TrimSpace(tileVal))
 	if err != nil {
-		return Position{}, fmt.Errorf("error parsing tile position: %w", err)
+		return NumericalPair{}, fmt.Errorf("error parsing tile position: %w", err)
 	}
-	return Position{column, tile}, nil
+	return NumericalPair{float64(column), float64(tile)}, nil
 }
 
-// Parse FloatingPosition structure from niri msg windows output
+// Parse NumericalPair structure from niri msg windows output
 // e.g.: 992, 20
-func parseFloatingPosition(value string) (FloatingPosition, error) {
+func parseFloatingPosition(value string) (NumericalPair, error) {
 	parts := strings.Split(value, ",")
 	if len(parts) != 2 {
-		return FloatingPosition{}, fmt.Errorf("error parsing floating position: %s", value)
+		return NumericalPair{}, fmt.Errorf("error parsing floating position: %s", value)
 	}
 	width, err := strconv.Atoi(strings.TrimSpace(parts[0]))
 	if err != nil {
-		return FloatingPosition{}, fmt.Errorf("error parsing x position: %w", err)
+		return NumericalPair{}, fmt.Errorf("error parsing x position: %w", err)
 	}
 	height, err := strconv.Atoi(strings.TrimSpace(parts[1]))
 	if err != nil {
-		return FloatingPosition{}, fmt.Errorf("error parsing y position: %w", err)
+		return NumericalPair{}, fmt.Errorf("error parsing y position: %w", err)
 	}
-	return FloatingPosition{width, height}, nil
+	return NumericalPair{float64(width), float64(height)}, nil
 }
 
 // Determine indentation level of string (how many white spaces
