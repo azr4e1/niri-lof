@@ -1,905 +1,237 @@
 package nirilof
 
 import (
-	"reflect"
 	"testing"
 )
 
-func TestParseWindowID(t *testing.T) {
-	tests := []struct {
-		name      string
-		line      string
-		wantID    int
-		wantFocus bool
-		wantErr   bool
-	}{
-		{
-			name:      "unfocused window",
-			line:      "Window ID 7:",
-			wantID:    7,
-			wantFocus: false,
+// Sample JSON taken from real `niri msg -j windows` output.
+var sampleJSON = []byte(`[
+	{
+		"id": 3,
+		"title": "Inbox - Unified Folders - Mozilla Thunderbird",
+		"app_id": "org.mozilla.Thunderbird",
+		"pid": 95229,
+		"workspace_id": 1,
+		"is_focused": false,
+		"is_floating": false,
+		"is_urgent": false,
+		"layout": {
+			"pos_in_scrolling_layout": [1, 1],
+			"tile_size": [772.0, 701.0],
+			"window_size": [772, 701],
+			"tile_pos_in_workspace_view": null,
+			"window_offset_in_tile": [0.0, 0.0]
 		},
-		{
-			name:      "focused window",
-			line:      "Window ID 15: (focused)",
-			wantID:    15,
-			wantFocus: true,
+		"focus_timestamp": {"secs": 31617, "nanos": 601451712}
+	},
+	{
+		"id": 29,
+		"title": "Terminal",
+		"app_id": "Alacritty",
+		"pid": 180761,
+		"workspace_id": 3,
+		"is_focused": true,
+		"is_floating": false,
+		"is_urgent": false,
+		"layout": {
+			"pos_in_scrolling_layout": [1, 1],
+			"tile_size": [772.0, 701.0],
+			"window_size": [772, 701],
+			"tile_pos_in_workspace_view": null,
+			"window_offset_in_tile": [0.0, 0.0]
 		},
-		{
-			name:      "large ID",
-			line:      "Window ID 99999:",
-			wantID:    99999,
-			wantFocus: false,
+		"focus_timestamp": {"secs": 33518, "nanos": 498286808}
+	},
+	{
+		"id": 36,
+		"title": "Floating Terminal",
+		"app_id": "Alacritty",
+		"pid": 230702,
+		"workspace_id": 4,
+		"is_focused": false,
+		"is_floating": true,
+		"is_urgent": false,
+		"layout": {
+			"pos_in_scrolling_layout": null,
+			"tile_size": [928.0, 1060.0],
+			"window_size": [928, 1060],
+			"tile_pos_in_workspace_view": [992.0, 20.0],
+			"window_offset_in_tile": [0.0, 0.0]
 		},
-		{
-			name:    "missing prefix",
-			line:    "Something else 7:",
-			wantErr: true,
-		},
-		{
-			name:    "no colon separator",
-			line:    "Window ID 7",
-			wantErr: true,
-		},
-		{
-			name:    "non-numeric ID",
-			line:    "Window ID abc:",
-			wantErr: true,
-		},
-		{
-			name:    "empty string",
-			line:    "",
-			wantErr: true,
-		},
+		"focus_timestamp": {"secs": 33511, "nanos": 985311335}
 	}
+]`)
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			id, focused, err := parseWindowID(tt.line)
-			if tt.wantErr {
-				if err == nil {
-					t.Fatal("expected error, got nil")
-				}
-				return
-			}
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
-			if id != tt.wantID {
-				t.Errorf("ID = %d, want %d", id, tt.wantID)
-			}
-			if focused != tt.wantFocus {
-				t.Errorf("focused = %v, want %v", focused, tt.wantFocus)
-			}
-		})
-	}
-}
-
-func TestGetSpaceIndentation(t *testing.T) {
-	tests := []struct {
-		name string
-		line string
-		want int
-	}{
-		{"no indentation", "hello", 0},
-		{"two spaces", "  hello", 2},
-		{"four spaces", "    hello", 4},
-		{"only spaces", "    ", 4},
-		{"empty string", "", 0},
-		{"tab is not a space", "\thello", 0},
-		{"mixed tab after spaces", "  \thello", 2},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := getSpaceIndentation(tt.line)
-			if got != tt.want {
-				t.Errorf("getSpaceIndentation(%q) = %d, want %d", tt.line, got, tt.want)
-			}
-		})
-	}
-}
-
-func TestParseSize(t *testing.T) {
-	tests := []struct {
-		name    string
-		value   string
-		want    NumericalPair
-		wantErr bool
-	}{
-		{
-			name:  "normal size",
-			value: "1491 x 1060",
-			want:  NumericalPair{1491, 1060},
-		},
-		{
-			name:  "zero size",
-			value: "0 x 0",
-			want:  NumericalPair{0, 0},
-		},
-		{
-			name:  "no spaces around x",
-			value: "100x200",
-			want:  NumericalPair{100, 200},
-		},
-		{
-			name:    "missing separator",
-			value:   "1491 1060",
-			wantErr: true,
-		},
-		{
-			name:    "too many parts",
-			value:   "1 x 2 x 3",
-			wantErr: true,
-		},
-		{
-			name:    "non-numeric width",
-			value:   "abc x 100",
-			wantErr: true,
-		},
-		{
-			name:    "non-numeric height",
-			value:   "100 x abc",
-			wantErr: true,
-		},
-		{
-			name:    "empty string",
-			value:   "",
-			wantErr: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, err := parseSize(tt.value)
-			if tt.wantErr {
-				if err == nil {
-					t.Fatal("expected error, got nil")
-				}
-				return
-			}
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("parseSize(%q) = %v, want %v", tt.value, got, tt.want)
-			}
-		})
-	}
-}
-
-func TestParsePosition(t *testing.T) {
-	tests := []struct {
-		name    string
-		value   string
-		want    NumericalPair
-		wantErr bool
-	}{
-		{
-			name:  "normal position",
-			value: "column 1, tile 1",
-			want:  NumericalPair{1, 1},
-		},
-		{
-			name:  "larger values",
-			value: "column 5, tile 3",
-			want:  NumericalPair{5, 3},
-		},
-		{
-			name:    "missing comma",
-			value:   "column 1 tile 1",
-			wantErr: true,
-		},
-		{
-			name:    "non-numeric column",
-			value:   "column abc, tile 1",
-			wantErr: true,
-		},
-		{
-			name:    "non-numeric tile",
-			value:   "column 1, tile abc",
-			wantErr: true,
-		},
-		{
-			name:    "empty string",
-			value:   "",
-			wantErr: true,
-		},
-		{
-			name:    "too many commas",
-			value:   "column 1, tile 1, extra",
-			wantErr: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, err := parsePosition(tt.value)
-			if tt.wantErr {
-				if err == nil {
-					t.Fatal("expected error, got nil")
-				}
-				return
-			}
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("parsePosition(%q) = %v, want %v", tt.value, got, tt.want)
-			}
-		})
-	}
-}
-
-func TestParseFloatingPosition(t *testing.T) {
-	tests := []struct {
-		name    string
-		value   string
-		want    NumericalPair
-		wantErr bool
-	}{
-		{
-			name:  "normal position",
-			value: "53, 20",
-			want:  NumericalPair{53, 20},
-		},
-		{
-			name:  "zero position",
-			value: "0, 0",
-			want:  NumericalPair{0, 0},
-		},
-		{
-			name:  "no spaces",
-			value: "10,20",
-			want:  NumericalPair{10, 20},
-		},
-		{
-			name:    "missing comma",
-			value:   "53 20",
-			wantErr: true,
-		},
-		{
-			name:    "non-numeric x",
-			value:   "abc, 20",
-			wantErr: true,
-		},
-		{
-			name:    "non-numeric y",
-			value:   "53, abc",
-			wantErr: true,
-		},
-		{
-			name:    "empty string",
-			value:   "",
-			wantErr: true,
-		},
-		{
-			name:    "too many commas",
-			value:   "1, 2, 3",
-			wantErr: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, err := parseFloatingPosition(tt.value)
-			if tt.wantErr {
-				if err == nil {
-					t.Fatal("expected error, got nil")
-				}
-				return
-			}
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("parseFloatingPosition(%q) = %v, want %v", tt.value, got, tt.want)
-			}
-		})
-	}
-}
-
-func TestParseIndentation(t *testing.T) {
-	t.Run("empty input", func(t *testing.T) {
-		result, consumed := parseIndentation([]string{}, 2)
-		if result != nil {
-			t.Errorf("expected nil, got %v", result)
-		}
-		if consumed != 0 {
-			t.Errorf("consumed = %d, want 0", consumed)
-		}
-	})
-
-	t.Run("flat key-value pairs", func(t *testing.T) {
-		lines := []string{
-			`  Title: "Firefox"`,
-			`  App ID: "firefox"`,
-			`  PID: 1234`,
-		}
-		result, consumed := parseIndentation(lines, 2)
-		if consumed != 3 {
-			t.Errorf("consumed = %d, want 3", consumed)
-		}
-		if result["Title"] != `"Firefox"` {
-			t.Errorf("Title = %v, want %q", result["Title"], `"Firefox"`)
-		}
-		if result["App ID"] != `"firefox"` {
-			t.Errorf("App ID = %v, want %q", result["App ID"], `"firefox"`)
-		}
-		if result["PID"] != "1234" {
-			t.Errorf("PID = %v, want %q", result["PID"], "1234")
-		}
-	})
-
-	t.Run("nested structure", func(t *testing.T) {
-		lines := []string{
-			"  Layout:",
-			"    Tile size: 1491 x 1060",
-			"    Window size: 1491 x 1060",
-		}
-		result, _ := parseIndentation(lines, 2)
-		nested, ok := result["Layout"].(map[string]any)
-		if !ok {
-			t.Fatalf("Layout should be map[string]any, got %T", result["Layout"])
-		}
-		if nested["Tile size"] != "1491 x 1060" {
-			t.Errorf("Tile size = %v, want %q", nested["Tile size"], "1491 x 1060")
-		}
-		if nested["Window size"] != "1491 x 1060" {
-			t.Errorf("Window size = %v, want %q", nested["Window size"], "1491 x 1060")
-		}
-	})
-
-	t.Run("returns on decreased indentation", func(t *testing.T) {
-		lines := []string{
-			"    Tile size: 100 x 200",
-			"  Next field: value",
-		}
-		result, consumed := parseIndentation(lines, 4)
-		if consumed != 1 {
-			t.Errorf("consumed = %d, want 1", consumed)
-		}
-		if result["Tile size"] != "100 x 200" {
-			t.Errorf("Tile size = %v, want %q", result["Tile size"], "100 x 200")
-		}
-	})
-
-	t.Run("multi-level nesting with returns to each level", func(t *testing.T) {
-		// Structure:
-		//   A: val_a                  (baseline level 2)
-		//   B:                        (baseline level 2, triggers nesting)
-		//     C: val_c               (level 4)
-		//     D:                     (level 4, triggers deeper nesting)
-		//       E: val_e             (level 6)
-		//     F: val_f               (back to level 4)
-		//   G: val_g                  (back to baseline level 2)
-		lines := []string{
-			"  A: val_a",
-			"  B:",
-			"    C: val_c",
-			"    D:",
-			"      E: val_e",
-			"    F: val_f",
-			"  G: val_g",
-		}
-		result, consumed := parseIndentation(lines, 2)
-		if consumed != 7 {
-			t.Errorf("consumed = %d, want 7", consumed)
-		}
-
-		// Baseline keys
-		if result["A"] != "val_a" {
-			t.Errorf("A = %v, want %q", result["A"], "val_a")
-		}
-		if result["G"] != "val_g" {
-			t.Errorf("G = %v, want %q", result["G"], "val_g")
-		}
-
-		// First nesting: B -> {C, D, F}
-		bMap, ok := result["B"].(map[string]any)
-		if !ok {
-			t.Fatalf("B should be map[string]any, got %T", result["B"])
-		}
-		if bMap["C"] != "val_c" {
-			t.Errorf("B.C = %v, want %q", bMap["C"], "val_c")
-		}
-		if bMap["F"] != "val_f" {
-			t.Errorf("B.F = %v, want %q", bMap["F"], "val_f")
-		}
-
-		// Second nesting: D -> {E}
-		dMap, ok := bMap["D"].(map[string]any)
-		if !ok {
-			t.Fatalf("B.D should be map[string]any, got %T", bMap["D"])
-		}
-		if dMap["E"] != "val_e" {
-			t.Errorf("B.D.E = %v, want %q", dMap["E"], "val_e")
-		}
-	})
-
-	t.Run("line without colon is skipped", func(t *testing.T) {
-		lines := []string{
-			"  valid: yes",
-			"  no-colon-here",
-			"  also valid: no",
-		}
-		result, consumed := parseIndentation(lines, 2)
-		if consumed != 3 {
-			t.Errorf("consumed = %d, want 3", consumed)
-		}
-		if len(result) != 2 {
-			t.Errorf("expected 2 entries, got %d", len(result))
-		}
-	})
-}
-
-func TestParseLayout(t *testing.T) {
-	t.Run("tiled window layout", func(t *testing.T) {
-		layoutMap := map[string]any{
-			"Tile size":             "1491 x 1060",
-			"Scrolling position":    "column 1, tile 1",
-			"Window size":           "1491 x 1060",
-			"Window offset in tile": "0 x 0",
-		}
-		got, err := parseLayout(layoutMap)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		want := Layout{
-			TileSize:         NumericalPair{1491, 1060},
-			ScrollingPos:     NumericalPair{1, 1},
-			WindowSize:       NumericalPair{1491, 1060},
-			WindowOffsetTile: NumericalPair{0, 0},
-		}
-		if !reflect.DeepEqual(got, want) {
-			t.Errorf("got %+v, want %+v", got, want)
-		}
-	})
-
-	t.Run("floating window layout", func(t *testing.T) {
-		layoutMap := map[string]any{
-			"Tile size":               "1867 x 1060",
-			"Workspace-view position": "53, 20",
-			"Window size":             "1867 x 1060",
-			"Window offset in tile":   "0 x 0",
-		}
-		got, err := parseLayout(layoutMap)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		want := Layout{
-			TileSize:              NumericalPair{1867, 1060},
-			WorkspaceViewPosition: NumericalPair{53, 20},
-			WindowSize:            NumericalPair{1867, 1060},
-			WindowOffsetTile:      NumericalPair{0, 0},
-		}
-		if !reflect.DeepEqual(got, want) {
-			t.Errorf("got %+v, want %+v", got, want)
-		}
-	})
-
-	t.Run("bad tile size", func(t *testing.T) {
-		layoutMap := map[string]any{
-			"Tile size": "bad",
-		}
-		_, err := parseLayout(layoutMap)
-		if err == nil {
-			t.Fatal("expected error, got nil")
-		}
-	})
-
-	t.Run("bad window size", func(t *testing.T) {
-		layoutMap := map[string]any{
-			"Window size": "bad",
-		}
-		_, err := parseLayout(layoutMap)
-		if err == nil {
-			t.Fatal("expected error, got nil")
-		}
-	})
-
-	t.Run("bad window offset", func(t *testing.T) {
-		layoutMap := map[string]any{
-			"Window offset in tile": "bad",
-		}
-		_, err := parseLayout(layoutMap)
-		if err == nil {
-			t.Fatal("expected error, got nil")
-		}
-	})
-
-	t.Run("bad scrolling position", func(t *testing.T) {
-		layoutMap := map[string]any{
-			"Scrolling position": "bad",
-		}
-		_, err := parseLayout(layoutMap)
-		if err == nil {
-			t.Fatal("expected error, got nil")
-		}
-	})
-
-	t.Run("bad workspace-view position", func(t *testing.T) {
-		layoutMap := map[string]any{
-			"Workspace-view position": "bad",
-		}
-		_, err := parseLayout(layoutMap)
-		if err == nil {
-			t.Fatal("expected error, got nil")
-		}
-	})
-
-	t.Run("non-string values are skipped", func(t *testing.T) {
-		layoutMap := map[string]any{
-			"Tile size":    "100 x 200",
-			"unknown-nest": map[string]any{"a": "b"},
-		}
-		got, err := parseLayout(layoutMap)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if !reflect.DeepEqual(got.TileSize, NumericalPair{100, 200}) {
-			t.Errorf("TileSize = %v, want {100 200}", got.TileSize)
-		}
-	})
-
-	t.Run("empty map", func(t *testing.T) {
-		got, err := parseLayout(map[string]any{})
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if !reflect.DeepEqual(got, Layout{}) {
-			t.Errorf("expected zero Layout, got %+v", got)
-		}
-	})
-}
-
-func TestParseWindow(t *testing.T) {
-	t.Run("tiled unfocused window", func(t *testing.T) {
-		content := `Window ID 7:
-  Title: "A Tour of Go — Mozilla Firefox"
-  App ID: "firefox"
-  Is floating: no
-  PID: 3798
-  Workspace ID: 4
-  Layout:
-    Tile size: 1491 x 1060
-    Scrolling position: column 1, tile 1
-    Window size: 1491 x 1060
-    Window offset in tile: 0 x 0`
-
-		got, err := ParseWindow(content)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if got.ID != 7 {
-			t.Errorf("ID = %d, want 7", got.ID)
-		}
-		if got.Focused {
-			t.Error("expected Focused = false")
-		}
-		if got.Title != "A Tour of Go — Mozilla Firefox" {
-			t.Errorf("Title = %q, want %q", got.Title, "A Tour of Go — Mozilla Firefox")
-		}
-		if got.AppID != "firefox" {
-			t.Errorf("AppID = %q, want %q", got.AppID, "firefox")
-		}
-		if got.IsFloating {
-			t.Error("expected IsFloating = false")
-		}
-		if got.PID != 3798 {
-			t.Errorf("PID = %d, want 3798", got.PID)
-		}
-		if got.WorkspaceID != 4 {
-			t.Errorf("WorkspaceID = %d, want 4", got.WorkspaceID)
-		}
-		if !reflect.DeepEqual(got.Layout.TileSize, NumericalPair{1491, 1060}) {
-			t.Errorf("TileSize = %v, want {1491 1060}", got.Layout.TileSize)
-		}
-		if !reflect.DeepEqual(got.Layout.ScrollingPos, NumericalPair{1, 1}) {
-			t.Errorf("ScrollingPos = %v, want {1 1}", got.Layout.ScrollingPos)
-		}
-		if !reflect.DeepEqual(got.Layout.WindowSize, NumericalPair{1491, 1060}) {
-			t.Errorf("WindowSize = %v, want {1491 1060}", got.Layout.WindowSize)
-		}
-		if !reflect.DeepEqual(got.Layout.WindowOffsetTile, NumericalPair{0, 0}) {
-			t.Errorf("WindowOffsetTile = %v, want {0 0}", got.Layout.WindowOffsetTile)
-		}
-	})
-
-	t.Run("floating focused window", func(t *testing.T) {
-		content := `Window ID 15: (focused)
-  Title: "ld@archbox:~/Desktop/Projects/niri-lof/cmd/main"
-  App ID: "Alacritty"
-  Is floating: yes
-  PID: 9626
-  Workspace ID: 5
-  Layout:
-    Tile size: 1867 x 1060
-    Workspace-view position: 53, 20
-    Window size: 1867 x 1060
-    Window offset in tile: 0 x 0`
-
-		got, err := ParseWindow(content)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if got.ID != 15 {
-			t.Errorf("ID = %d, want 15", got.ID)
-		}
-		if !got.Focused {
-			t.Error("expected Focused = true")
-		}
-		if got.AppID != "Alacritty" {
-			t.Errorf("AppID = %q, want %q", got.AppID, "Alacritty")
-		}
-		if !got.IsFloating {
-			t.Error("expected IsFloating = true")
-		}
-		if got.PID != 9626 {
-			t.Errorf("PID = %d, want 9626", got.PID)
-		}
-		if !reflect.DeepEqual(got.Layout.WorkspaceViewPosition, NumericalPair{53, 20}) {
-			t.Errorf("WorkspaceViewPosition = %v, want {53 20}", got.Layout.WorkspaceViewPosition)
-		}
-	})
-
-	t.Run("empty content", func(t *testing.T) {
-		_, err := ParseWindow("")
-		if err == nil {
-			t.Fatal("expected error for empty content")
-		}
-	})
-
-	t.Run("invalid first line", func(t *testing.T) {
-		_, err := ParseWindow("Not a window line")
-		if err == nil {
-			t.Fatal("expected error for invalid first line")
-		}
-	})
-
-	t.Run("invalid PID", func(t *testing.T) {
-		content := `Window ID 1:
-  Title: "test"
-  App ID: "test"
-  PID: notanumber
-  Workspace ID: 1`
-
-		_, err := ParseWindow(content)
-		if err == nil {
-			t.Fatal("expected error for non-numeric PID")
-		}
-	})
-
-	t.Run("invalid workspace ID", func(t *testing.T) {
-		content := `Window ID 1:
-  Title: "test"
-  App ID: "test"
-  PID: 100
-  Workspace ID: notanumber`
-
-		_, err := ParseWindow(content)
-		if err == nil {
-			t.Fatal("expected error for non-numeric workspace ID")
-		}
-	})
-
-	t.Run("invalid layout value", func(t *testing.T) {
-		content := `Window ID 1:
-  Title: "test"
-  App ID: "test"
-  PID: 100
-  Workspace ID: 1
-  Layout:
-    Tile size: bad`
-
-		_, err := ParseWindow(content)
-		if err == nil {
-			t.Fatal("expected error for bad layout")
-		}
-	})
-}
-
-func TestParseNiriWindows(t *testing.T) {
-	t.Run("full test data", func(t *testing.T) {
-		content := `Window ID 7:
-  Title: "A Tour of Go — Original profile — Mozilla Firefox"
-  App ID: "firefox"
-  Is floating: no
-  PID: 3798
-  Workspace ID: 4
-  Layout:
-    Tile size: 1491 x 1060
-    Scrolling position: column 1, tile 1
-    Window size: 1491 x 1060
-    Window offset in tile: 0 x 0
-
-Window ID 8:
-  Title: "Fwd: Action Required — Mozilla Thunderbird"
-  App ID: "org.mozilla.Thunderbird"
-  Is floating: no
-  PID: 4441
-  Workspace ID: 1
-  Layout:
-    Tile size: 772 x 701
-    Scrolling position: column 1, tile 1
-    Window size: 772 x 701
-    Window offset in tile: 0 x 0
-
-Window ID 15: (focused)
-  Title: "ld@archbox:~/Desktop/Projects/niri-lof/cmd/main"
-  App ID: "Alacritty"
-  Is floating: yes
-  PID: 9626
-  Workspace ID: 5
-  Layout:
-    Tile size: 1867 x 1060
-    Workspace-view position: 53, 20
-    Window size: 1867 x 1060
-    Window offset in tile: 0 x 0`
-
-		windows, err := ParseNiriWindows(content)
+func TestParseNiriWindowsJSON(t *testing.T) {
+	t.Run("real niri output", func(t *testing.T) {
+		windows, err := ParseNiriWindowsJSON(sampleJSON)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 		if len(windows) != 3 {
-			t.Fatalf("got %d windows, want 3", len(windows))
+			t.Fatalf("expected 3 windows, got %d", len(windows))
 		}
 
-		// First window
-		if windows[0].ID != 7 {
-			t.Errorf("windows[0].ID = %d, want 7", windows[0].ID)
+		// First window: Thunderbird
+		w := windows[0]
+		if w.ID != 3 {
+			t.Errorf("window[0].ID = %d, want 3", w.ID)
 		}
-		if windows[0].AppID != "firefox" {
-			t.Errorf("windows[0].AppID = %q, want %q", windows[0].AppID, "firefox")
+		if w.Title != "Inbox - Unified Folders - Mozilla Thunderbird" {
+			t.Errorf("window[0].Title = %q, want %q", w.Title, "Inbox - Unified Folders - Mozilla Thunderbird")
 		}
-		if windows[0].Focused {
-			t.Error("windows[0] should not be focused")
+		if w.AppID != "org.mozilla.Thunderbird" {
+			t.Errorf("window[0].AppID = %q, want %q", w.AppID, "org.mozilla.Thunderbird")
+		}
+		if w.PID != 95229 {
+			t.Errorf("window[0].PID = %d, want 95229", w.PID)
+		}
+		if w.WorkspaceID != 1 {
+			t.Errorf("window[0].WorkspaceID = %d, want 1", w.WorkspaceID)
+		}
+		if w.Focused {
+			t.Error("window[0].Focused = true, want false")
+		}
+		if w.IsFloating {
+			t.Error("window[0].IsFloating = true, want false")
 		}
 
-		// Second window
-		if windows[1].ID != 8 {
-			t.Errorf("windows[1].ID = %d, want 8", windows[1].ID)
+		// Second window: focused terminal
+		w = windows[1]
+		if w.ID != 29 {
+			t.Errorf("window[1].ID = %d, want 29", w.ID)
 		}
-		if windows[1].AppID != "org.mozilla.Thunderbird" {
-			t.Errorf("windows[1].AppID = %q, want %q", windows[1].AppID, "org.mozilla.Thunderbird")
+		if w.AppID != "Alacritty" {
+			t.Errorf("window[1].AppID = %q, want %q", w.AppID, "Alacritty")
+		}
+		if !w.Focused {
+			t.Error("window[1].Focused = false, want true")
 		}
 
-		// Third window (focused, floating)
-		if windows[2].ID != 15 {
-			t.Errorf("windows[2].ID = %d, want 15", windows[2].ID)
+		// Third window: floating
+		w = windows[2]
+		if w.ID != 36 {
+			t.Errorf("window[2].ID = %d, want 36", w.ID)
 		}
-		if !windows[2].Focused {
-			t.Error("windows[2] should be focused")
-		}
-		if !windows[2].IsFloating {
-			t.Error("windows[2] should be floating")
-		}
-		if !reflect.DeepEqual(windows[2].Layout.WorkspaceViewPosition, NumericalPair{53, 20}) {
-			t.Errorf("windows[2] workspace-view position = %v, want {53 20}",
-				windows[2].Layout.WorkspaceViewPosition)
+		if !w.IsFloating {
+			t.Error("window[2].IsFloating = false, want true")
 		}
 	})
 
-	t.Run("single window", func(t *testing.T) {
-		content := `Window ID 1:
-  Title: "test"
-  App ID: "myapp"
-  Is floating: no
-  PID: 100
-  Workspace ID: 1
-  Layout:
-    Tile size: 800 x 600
-    Scrolling position: column 1, tile 1
-    Window size: 800 x 600
-    Window offset in tile: 0 x 0`
-
-		windows, err := ParseNiriWindows(content)
+	t.Run("layout fields parsed correctly", func(t *testing.T) {
+		windows, err := ParseNiriWindowsJSON(sampleJSON)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		if len(windows) != 1 {
-			t.Fatalf("got %d windows, want 1", len(windows))
+
+		// Tiled window: has pos_in_scrolling_layout, null tile_pos_in_workspace_view
+		layout := windows[0].Layout
+		if len(layout.ScrollingPos) != 2 || layout.ScrollingPos[0] != 1 || layout.ScrollingPos[1] != 1 {
+			t.Errorf("ScrollingPos = %v, want [1 1]", layout.ScrollingPos)
 		}
-		if windows[0].AppID != "myapp" {
-			t.Errorf("AppID = %q, want %q", windows[0].AppID, "myapp")
+		if len(layout.TileSize) != 2 || layout.TileSize[0] != 772 || layout.TileSize[1] != 701 {
+			t.Errorf("TileSize = %v, want [772 701]", layout.TileSize)
+		}
+		if len(layout.WindowSize) != 2 || layout.WindowSize[0] != 772 || layout.WindowSize[1] != 701 {
+			t.Errorf("WindowSize = %v, want [772 701]", layout.WindowSize)
+		}
+		if layout.WorkspaceViewPosition != nil {
+			t.Errorf("WorkspaceViewPosition = %v, want nil (null in JSON)", layout.WorkspaceViewPosition)
+		}
+		if len(layout.WindowOffsetTile) != 2 || layout.WindowOffsetTile[0] != 0 || layout.WindowOffsetTile[1] != 0 {
+			t.Errorf("WindowOffsetTile = %v, want [0 0]", layout.WindowOffsetTile)
+		}
+
+		// Floating window: null pos_in_scrolling_layout, has tile_pos_in_workspace_view
+		layout = windows[2].Layout
+		if layout.ScrollingPos != nil {
+			t.Errorf("floating ScrollingPos = %v, want nil (null in JSON)", layout.ScrollingPos)
+		}
+		if len(layout.WorkspaceViewPosition) != 2 || layout.WorkspaceViewPosition[0] != 992 || layout.WorkspaceViewPosition[1] != 20 {
+			t.Errorf("WorkspaceViewPosition = %v, want [992 20]", layout.WorkspaceViewPosition)
 		}
 	})
 
-	t.Run("empty string", func(t *testing.T) {
-		windows, err := ParseNiriWindows("")
+	t.Run("empty array", func(t *testing.T) {
+		windows, err := ParseNiriWindowsJSON([]byte(`[]`))
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 		if len(windows) != 0 {
-			t.Errorf("got %d windows, want 0", len(windows))
+			t.Errorf("expected 0 windows, got %d", len(windows))
 		}
 	})
 
-	t.Run("whitespace only", func(t *testing.T) {
-		windows, err := ParseNiriWindows("   \n\n   \n  ")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if len(windows) != 0 {
-			t.Errorf("got %d windows, want 0", len(windows))
-		}
-	})
-
-	t.Run("trailing newlines", func(t *testing.T) {
-		content := `Window ID 1:
-  Title: "test"
-  App ID: "myapp"
-  Is floating: no
-  PID: 100
-  Workspace ID: 1
-  Layout:
-    Tile size: 800 x 600
-    Scrolling position: column 1, tile 1
-    Window size: 800 x 600
-    Window offset in tile: 0 x 0
-
-`
-
-		windows, err := ParseNiriWindows(content)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if len(windows) != 1 {
-			t.Fatalf("got %d windows, want 1", len(windows))
-		}
-	})
-
-	t.Run("invalid window block causes error", func(t *testing.T) {
-		content := `Window ID 1:
-  Title: "test"
-  App ID: "myapp"
-  PID: 100
-  Workspace ID: 1
-
-Not a valid window block`
-
-		_, err := ParseNiriWindows(content)
+	t.Run("invalid JSON", func(t *testing.T) {
+		_, err := ParseNiriWindowsJSON([]byte(`not json`))
 		if err == nil {
-			t.Fatal("expected error for invalid block")
+			t.Fatal("expected error for invalid JSON, got nil")
 		}
 	})
 
-	t.Run("all fields parsed from real data", func(t *testing.T) {
-		content := `Window ID 7:
-  Title: "A Tour of Go — Original profile — Mozilla Firefox"
-  App ID: "firefox"
-  Is floating: no
-  PID: 3798
-  Workspace ID: 4
-  Layout:
-    Tile size: 1491 x 1060
-    Scrolling position: column 1, tile 1
-    Window size: 1491 x 1060
-    Window offset in tile: 0 x 0`
+	t.Run("malformed JSON", func(t *testing.T) {
+		_, err := ParseNiriWindowsJSON([]byte(`[{"id": 1, "title":}]`))
+		if err == nil {
+			t.Fatal("expected error for malformed JSON, got nil")
+		}
+	})
 
-		windows, err := ParseNiriWindows(content)
+	t.Run("empty input", func(t *testing.T) {
+		_, err := ParseNiriWindowsJSON([]byte(``))
+		if err == nil {
+			t.Fatal("expected error for empty input, got nil")
+		}
+	})
+
+	t.Run("extra fields are ignored", func(t *testing.T) {
+		input := []byte(`[{"id": 5, "app_id": "test", "is_urgent": false, "focus_timestamp": {"secs": 100, "nanos": 200}, "some_future_field": true}]`)
+		windows, err := ParseNiriWindowsJSON(input)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-
-		want := Window{
-			ID:          7,
-			Focused:     false,
-			Title:       "A Tour of Go — Original profile — Mozilla Firefox",
-			AppID:       "firefox",
-			IsFloating:  false,
-			PID:         3798,
-			WorkspaceID: 4,
-			Layout: Layout{
-				TileSize:         NumericalPair{1491, 1060},
-				ScrollingPos:     NumericalPair{1, 1},
-				WindowSize:       NumericalPair{1491, 1060},
-				WindowOffsetTile: NumericalPair{0, 0},
-			},
+		if len(windows) != 1 {
+			t.Fatalf("expected 1 window, got %d", len(windows))
 		}
+		if windows[0].ID != 5 {
+			t.Errorf("ID = %d, want 5", windows[0].ID)
+		}
+	})
 
-		if !reflect.DeepEqual(windows[0], want) {
-			t.Errorf("got:\n%+v\nwant:\n%+v", windows[0], want)
+	t.Run("missing fields default to zero values", func(t *testing.T) {
+		input := []byte(`[{"id": 10, "app_id": "minimal"}]`)
+		windows, err := ParseNiriWindowsJSON(input)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(windows) != 1 {
+			t.Fatalf("expected 1 window, got %d", len(windows))
+		}
+		w := windows[0]
+		if w.Title != "" {
+			t.Errorf("Title = %q, want empty string", w.Title)
+		}
+		if w.Focused {
+			t.Error("Focused = true, want false")
+		}
+		if w.PID != 0 {
+			t.Errorf("PID = %d, want 0", w.PID)
+		}
+	})
+
+	t.Run("object instead of array", func(t *testing.T) {
+		_, err := ParseNiriWindowsJSON([]byte(`{"id": 1}`))
+		if err == nil {
+			t.Fatal("expected error for JSON object instead of array, got nil")
+		}
+	})
+
+	t.Run("null JSON", func(t *testing.T) {
+		windows, err := ParseNiriWindowsJSON([]byte(`null`))
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(windows) != 0 {
+			t.Errorf("expected 0 windows, got %d", len(windows))
 		}
 	})
 }
