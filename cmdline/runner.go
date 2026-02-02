@@ -20,7 +20,7 @@ func (r Runner) Focus(winID int) error {
 }
 
 func (r Runner) Spawn(cmd string) error {
-	niriMsg := exec.Command("niri", "msg", "action", "spawn-sh", "--", fmt.Sprintf("\"%s\"", cmd))
+	niriMsg := exec.Command("niri", "msg", "action", "spawn-sh", "--", cmd)
 
 	return niriMsg.Run()
 }
