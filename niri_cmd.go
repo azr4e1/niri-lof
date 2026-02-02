@@ -2,6 +2,7 @@ package nirilof
 
 import (
 	"fmt"
+	"slices"
 )
 
 type NiriRunner interface {
@@ -18,6 +19,18 @@ func GetWindows(runner NiriRunner) ([]Window, error) {
 	}
 
 	windows, err := ParseNiriWindowsJSON(data)
+
+	// sort them by ID
+	slices.SortFunc(windows, func(w1, w2 Window) int {
+		switch {
+		case w1.ID < w2.ID:
+			return -1
+		case w1.ID == w2.ID:
+			return 0
+		default:
+			return 1
+		}
+	})
 
 	return windows, err
 }
@@ -53,7 +66,35 @@ func FocusWindow(runner NiriRunner, window Window, allWindows []Window) error {
 	return err
 }
 
-// Find a window by appID. If there is, focus the first result.
+// Given a list of windows, find the index of the focused window.
+// If none focused, returns -1
+func FindFocusedWindow(allWindows []Window) int {
+	index := -1
+	for i, w := range allWindows {
+		if w.Focused {
+			index = i
+			break
+		}
+	}
+
+	return index
+}
+
+// Get next windows from index provided
+func GetNextWindow(currentIndex int, allWindows []Window) Window {
+	if len(allWindows) == 0 {
+		return Window{}
+	}
+
+	if currentIndex < 0 || currentIndex >= len(allWindows)-1 {
+		return allWindows[0]
+	}
+
+	return allWindows[currentIndex+1]
+}
+
+// Find a window by appID. If there are windows with that appID, focus the window
+// with next ID of the currently focused, if the currently focused also has same appID.
 // Otherwise, run the command cmd provided
 func LaunchOrFocus(runner NiriRunner, appID string, cmd string) error {
 	allWindows, err := GetWindows(runner)
@@ -67,6 +108,8 @@ func LaunchOrFocus(runner NiriRunner, appID string, cmd string) error {
 		return err
 	}
 
-	window := appIDWindows[0]
+	windowIndex := FindFocusedWindow(appIDWindows)
+	window := GetNextWindow(windowIndex, appIDWindows)
+
 	return FocusWindow(runner, window, allWindows)
 }

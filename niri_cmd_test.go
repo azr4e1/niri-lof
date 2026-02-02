@@ -149,13 +149,142 @@ func TestFocusWindow(t *testing.T) {
 	})
 }
 
+func TestFindFocusedWindow(t *testing.T) {
+	t.Run("returns index of focused window", func(t *testing.T) {
+		windows := []Window{
+			{ID: 1, Focused: false},
+			{ID: 2, Focused: true},
+			{ID: 3, Focused: false},
+		}
+		idx := FindFocusedWindow(windows)
+		if idx != 1 {
+			t.Errorf("got %d, want 1", idx)
+		}
+	})
+
+	t.Run("first window focused", func(t *testing.T) {
+		windows := []Window{
+			{ID: 1, Focused: true},
+			{ID: 2, Focused: false},
+		}
+		idx := FindFocusedWindow(windows)
+		if idx != 0 {
+			t.Errorf("got %d, want 0", idx)
+		}
+	})
+
+	t.Run("last window focused", func(t *testing.T) {
+		windows := []Window{
+			{ID: 1, Focused: false},
+			{ID: 2, Focused: true},
+		}
+		idx := FindFocusedWindow(windows)
+		if idx != 1 {
+			t.Errorf("got %d, want 1", idx)
+		}
+	})
+
+	t.Run("none focused", func(t *testing.T) {
+		windows := []Window{
+			{ID: 1, Focused: false},
+			{ID: 2, Focused: false},
+		}
+		idx := FindFocusedWindow(windows)
+		if idx != -1 {
+			t.Errorf("got %d, want -1", idx)
+		}
+	})
+
+	t.Run("empty list", func(t *testing.T) {
+		idx := FindFocusedWindow([]Window{})
+		if idx != -1 {
+			t.Errorf("got %d, want -1", idx)
+		}
+	})
+
+	t.Run("single focused window", func(t *testing.T) {
+		windows := []Window{{ID: 1, Focused: true}}
+		idx := FindFocusedWindow(windows)
+		if idx != 0 {
+			t.Errorf("got %d, want 0", idx)
+		}
+	})
+
+	t.Run("single unfocused window", func(t *testing.T) {
+		windows := []Window{{ID: 1, Focused: false}}
+		idx := FindFocusedWindow(windows)
+		if idx != -1 {
+			t.Errorf("got %d, want -1", idx)
+		}
+	})
+}
+
+func TestGetNextWindow(t *testing.T) {
+	windows := []Window{
+		{ID: 1, AppID: "a"},
+		{ID: 2, AppID: "a"},
+		{ID: 3, AppID: "a"},
+	}
+
+	t.Run("returns next window", func(t *testing.T) {
+		w := GetNextWindow(0, windows)
+		if w.ID != 2 {
+			t.Errorf("got ID %d, want 2", w.ID)
+		}
+	})
+
+	t.Run("returns next from middle", func(t *testing.T) {
+		w := GetNextWindow(1, windows)
+		if w.ID != 3 {
+			t.Errorf("got ID %d, want 3", w.ID)
+		}
+	})
+
+	t.Run("wraps around from last index", func(t *testing.T) {
+		w := GetNextWindow(2, windows)
+		if w.ID != 1 {
+			t.Errorf("got ID %d, want 1", w.ID)
+		}
+	})
+
+	t.Run("wraps around for negative index", func(t *testing.T) {
+		w := GetNextWindow(-1, windows)
+		if w.ID != 1 {
+			t.Errorf("got ID %d, want 1", w.ID)
+		}
+	})
+
+	t.Run("wraps around for out of bounds index", func(t *testing.T) {
+		w := GetNextWindow(10, windows)
+		if w.ID != 1 {
+			t.Errorf("got ID %d, want 1", w.ID)
+		}
+	})
+
+	t.Run("single window wraps to itself", func(t *testing.T) {
+		single := []Window{{ID: 5, AppID: "b"}}
+		w := GetNextWindow(0, single)
+		if w.ID != 5 {
+			t.Errorf("got ID %d, want 5", w.ID)
+		}
+	})
+
+	t.Run("empty list returns zero value", func(t *testing.T) {
+		w := GetNextWindow(0, []Window{})
+		if w.ID != 0 {
+			t.Errorf("got ID %d, want 0 (zero value)", w.ID)
+		}
+	})
+}
+
 func TestLaunchOrFocus(t *testing.T) {
-	t.Run("focuses when app exists", func(t *testing.T) {
+	t.Run("focuses when single app match is focused", func(t *testing.T) {
 		runner := &mockRunner{jsonData: testWindowsJSON}
 		err := LaunchOrFocus(runner, "firefox", "firefox")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
+		// firefox is the only match and is focused (last in appIDWindows) → allWindows[0]
 		if runner.focusedID != 1 {
 			t.Errorf("focused ID = %d, want 1", runner.focusedID)
 		}
@@ -164,14 +293,51 @@ func TestLaunchOrFocus(t *testing.T) {
 		}
 	})
 
-	t.Run("focuses first match when multiple exist", func(t *testing.T) {
+	t.Run("focuses first appID window when none is focused", func(t *testing.T) {
 		runner := &mockRunner{jsonData: testWindowsJSON}
 		err := LaunchOrFocus(runner, "Alacritty", "alacritty")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
+		// No Alacritty window is focused → GetNextWindow(-1, appIDWindows) → appIDWindows[0] = id:2
 		if runner.focusedID != 2 {
-			t.Errorf("focused ID = %d, want 2 (first Alacritty)", runner.focusedID)
+			t.Errorf("focused ID = %d, want 2", runner.focusedID)
+		}
+	})
+
+	t.Run("cycles to next appID window when non-last is focused", func(t *testing.T) {
+		json := []byte(`[
+			{"id":1,"title":"Firefox","app_id":"firefox","pid":100,"workspace_id":1,"is_focused":false,"is_floating":false},
+			{"id":2,"title":"Terminal 1","app_id":"Alacritty","pid":200,"workspace_id":2,"is_focused":false,"is_floating":false},
+			{"id":3,"title":"Terminal 2","app_id":"Alacritty","pid":300,"workspace_id":3,"is_focused":true,"is_floating":false},
+			{"id":4,"title":"Terminal 3","app_id":"Alacritty","pid":400,"workspace_id":4,"is_focused":false,"is_floating":false}
+		]`)
+		runner := &mockRunner{jsonData: json}
+		err := LaunchOrFocus(runner, "Alacritty", "alacritty")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		// appIDWindows: [id:2, id:3(focused), id:4] → GetNextWindow(1, ...) → appIDWindows[2] = id:4
+		if runner.focusedID != 4 {
+			t.Errorf("focused ID = %d, want 4", runner.focusedID)
+		}
+	})
+
+	t.Run("wraps to first appID window when last is focused", func(t *testing.T) {
+		json := []byte(`[
+			{"id":1,"title":"Firefox","app_id":"firefox","pid":100,"workspace_id":1,"is_focused":false,"is_floating":false},
+			{"id":2,"title":"Terminal 1","app_id":"Alacritty","pid":200,"workspace_id":2,"is_focused":false,"is_floating":false},
+			{"id":3,"title":"Terminal 2","app_id":"Alacritty","pid":300,"workspace_id":3,"is_focused":false,"is_floating":false},
+			{"id":4,"title":"Terminal 3","app_id":"Alacritty","pid":400,"workspace_id":4,"is_focused":true,"is_floating":false}
+		]`)
+		runner := &mockRunner{jsonData: json}
+		err := LaunchOrFocus(runner, "Alacritty", "alacritty")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		// appIDWindows: [id:2, id:3, id:4(focused)] → GetNextWindow(2, ...) → appIDWindows[0] = id:2
+		if runner.focusedID != 2 {
+			t.Errorf("focused ID = %d, want 2", runner.focusedID)
 		}
 	})
 
