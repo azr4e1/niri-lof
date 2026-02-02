@@ -8,7 +8,7 @@ import (
 	nirilof "github.com/azr4e1/niri-lof"
 )
 
-const VERSION = "v0.4.0"
+const VERSION = "v0.5.1"
 
 func Main() int {
 	flag.Usage = func() {
