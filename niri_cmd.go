@@ -3,6 +3,7 @@ package nirilof
 import (
 	"fmt"
 	"slices"
+	"strings"
 )
 
 type NiriRunner interface {
@@ -19,6 +20,9 @@ func GetWindows(runner NiriRunner) ([]Window, error) {
 	}
 
 	windows, err := ParseNiriWindowsJSON(data)
+	if err != nil {
+		return nil, err
+	}
 
 	// sort them by ID
 	slices.SortFunc(windows, func(w1, w2 Window) int {
@@ -104,6 +108,10 @@ func LaunchOrFocus(runner NiriRunner, appID string, cmd string) error {
 
 	appIDWindows := FindWindowByAppID(appID, allWindows)
 	if len(appIDWindows) == 0 {
+		// if cmd is null, ignore
+		if len(strings.TrimSpace(cmd)) == 0 {
+			return nil
+		}
 		err = runner.Spawn(cmd)
 		return err
 	}
